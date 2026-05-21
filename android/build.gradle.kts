@@ -34,11 +34,14 @@ kotlin {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.github.rtm516:Apktool:3d177ffa61")
-    implementation("ro.andob.androidawt:androidawt:1.0.4")
     implementation("org.bouncycastle:bcpkix-jdk15on:1.56")
     implementation("com.github.kellinwood.zip-signer:zipsigner-lib:2bb3b69ff3")
     implementation("com.github.kellinwood.zip-signer:zipsigner-lib-optional:2bb3b69ff3")
     implementation("com.github.kellinwood.zip-signer:android-sun-jarsign-support:2bb3b69ff3")
     implementation("com.github.rtm516.jgit:org.eclipse.jgit:61810ad68a")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
+    implementation("com.google.android.material:material:1.12.0")
 }

@@ -5,17 +5,15 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        maven("https://andob.io/repository/open_source")
-        maven("https://jcenter.bintray.com")
-        maven("https://jitpack.io")
+	maven("https://jitpack.io")
+	maven("https://repo1.maven.org/")
     }
 }
 
-rootProject.name = "ViennaServerAndroid"
-include(":app")
+rootProject.name = "vienna server for android"
+include(":android")
