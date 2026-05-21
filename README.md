@@ -31,3 +31,15 @@ Build with Android Studio or Gradle after installing the Android Gradle plugin:
 ```powershell
 .\gradlew.bat assembleDebug
 ```
+
+Build, start an Android emulator, and install the debug APK:
+
+```powershell
+.\gradlew.bat testInstallOnEmulator
+```
+
+To choose a specific AVD:
+
+```powershell
+.\gradlew.bat testInstallOnEmulator -PavdName=Pixel_8_API_35
+```

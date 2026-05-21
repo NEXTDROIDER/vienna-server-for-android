@@ -24,7 +24,6 @@ import org.eclipse.jgit.patch.Patch
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
@@ -40,6 +39,7 @@ class PatcherActivity : Activity() {
     private lateinit var logText: TextView
     private lateinit var paths: PatcherPaths
     private var locatorUrl: String = ""
+    private var selectedApkFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,10 +79,15 @@ class PatcherActivity : Activity() {
                 }
             }
         }
+        val chooseButton = Button(this).apply {
+            text = "Choose APK"
+            setOnClickListener { chooseApk() }
+        }
         val installButton = Button(this).apply {
             text = "Install APK"
             setOnClickListener { installSignedApk() }
         }
+        actions.addView(chooseButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         actions.addView(runButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         actions.addView(installButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         logText = TextView(this).apply {
@@ -101,6 +106,30 @@ class PatcherActivity : Activity() {
         refreshStatus()
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_PICK_APK && resultCode == RESULT_OK) {
+            val uri = data?.data
+            if (uri == null) {
+                appendLog("No APK selected")
+                return
+            }
+            try {
+                val target = paths.inputApk
+                target.parentFile?.mkdirs()
+                contentResolver.openInputStream(uri).use { input ->
+                    requireNotNull(input) { "Could not open selected APK" }
+                    FileOutputStream(target).use { output -> input.copyTo(output) }
+                }
+                selectedApkFile = target
+                appendLog("Selected APK: ${target.absolutePath}")
+                refreshStatus()
+            } catch (error: Throwable) {
+                appendLog("APK select failed: ${error.message}")
+            }
+        }
+    }
+
     override fun onDestroy() {
         executor.shutdownNow()
         super.onDestroy()
@@ -111,6 +140,7 @@ class PatcherActivity : Activity() {
         val patched = installedVersion("dev.projectearth.prod")
         statusText.text = buildString {
             append("Locator: $locatorUrl\n")
+            append("Selected APK: ${selectedApkFile?.name ?: "installed Minecraft Earth"}\n")
             append("Minecraft Earth: ${official ?: "not installed"}\n")
             append("Project Earth: ${patched ?: "not installed"}")
         }
@@ -143,8 +173,20 @@ class PatcherActivity : Activity() {
     }
 
     private fun findEarthApk(): File {
+        selectedApkFile?.takeIf { it.isFile }?.let { return it }
         val info = packageManager.getApplicationInfo("com.mojang.minecraftearth", 0)
         return File(info.sourceDir)
+    }
+
+    private fun chooseApk() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+            .putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("application/vnd.android.package-archive", "application/octet-stream")
+            )
+        startActivityForResult(intent, REQUEST_PICK_APK)
     }
 
     private fun prepareTools() {
@@ -295,6 +337,7 @@ class PatcherActivity : Activity() {
         val outDir: Path = externalCache.toPath().resolve("com.mojang.minecraftearth")
         val outFile: File = externalCache.toPath().resolve("dev.projectearth.prod.unsigned.apk").toFile()
         val outFileSigned: File = externalFiles.toPath().resolve("dev.projectearth.prod.apk").toFile()
+        val inputApk: File = externalCache.toPath().resolve("input/minecraft-earth.apk").toFile()
         val frameworkDir: String = externalCache.toPath().resolve("framework").toString()
         val aaptExec: File = activity.filesDir.toPath().resolve("aapt").toFile()
         val earthKeystore: File = activity.filesDir.toPath().resolve("earth_test.jks").toFile()
@@ -302,6 +345,7 @@ class PatcherActivity : Activity() {
 
     companion object {
         const val EXTRA_PORT = "com.vienna.server.android.PORT"
+        private const val REQUEST_PICK_APK = 2001
         private const val SERVER_URL_MAX = 27
     }
 }
