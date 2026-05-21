@@ -1,8 +1,13 @@
 package com.vienna.server.android
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.widget.Button
@@ -10,6 +15,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 
 class MainActivity : Activity() {
     private var server: ViennaHttpServer? = null
@@ -47,7 +53,7 @@ class MainActivity : Activity() {
         }
         val startButton = Button(this).apply {
             text = "Start"
-            setOnClickListener { startServer() }
+            setOnClickListener { checkStoragePermissionAndStart() }
         }
         val stopButton = Button(this).apply {
             text = "Stop"
@@ -87,6 +93,57 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
+    private fun checkStoragePermissionAndStart() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Environment.isExternalStorageManager()) {
+                startServer()
+            } else {
+                // Показуємо діалог із поясненням перед викликом системного екрану
+                showPermissionRationaleDialog()
+            }
+        } else {
+            startServer()
+        }
+    }
+
+    private fun showPermissionRationaleDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Доступ до пам'яті пристрою")
+            .setMessage("Для коректної роботи локального сервера та патчера додатку необхідно створити робочу папку 'vienna' у вашому загальному сховищі (/storage/emulated/0). Будь ласка, надайте дозвіл на керування всіма файлами у наступному системному вікні.")
+            .setPositiveButton("Налаштування") { _, _ ->
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivityForResult(intent, STORAGE_PERMISSION_CODE)
+                } catch (e: Exception) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivityForResult(intent, STORAGE_PERMISSION_CODE)
+                }
+            }
+            .setNegativeButton("Скасувати") { dialog, _ ->
+                dialog.dismiss()
+                appendLog("Помилка: Користувач скасував запит дозволу.")
+                Toast.makeText(this, "Без дозволу сервер не зможе працювати", Toast.LENGTH_SHORT).show()
+            }
+            .setCancelable(false) // Забороняємо закривати діалог тапом мимо або кнопкою назад
+            .show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == STORAGE_PERMISSION_CODE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    startServer()
+                } else {
+                    appendLog("Помилка: Дозвіл на доступ до файлів відхилено.")
+                    Toast.makeText(this, "Дозвіл відхилено. Сервер не запущено.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun startServer() {
         if (server?.isRunning == true) return
         val port = portInput.text.toString().toIntOrNull() ?: 8080
@@ -96,7 +153,7 @@ class MainActivity : Activity() {
         try {
             instance.start()
             server = instance
-            statusText.text = "Running on http://0.0.0.0:$port"
+            statusText.text = "Running on http://0.0.0:$port"
             appendLog("Server started on port $port")
             appendLog("Static data folder: ${instance.paths.staticDataDir.absolutePath}")
             appendLog("Buildplates folder: ${instance.paths.buildplatesDir.absolutePath}")
@@ -117,5 +174,9 @@ class MainActivity : Activity() {
     private fun appendLog(message: String) {
         val current = logText.text.toString()
         logText.text = if (current.isBlank()) message else "$current\n$message"
+    }
+
+    companion object {
+        private const val STORAGE_PERMISSION_CODE = 2296
     }
 }
