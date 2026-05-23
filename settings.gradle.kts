@@ -17,5 +17,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ViennaServerAndroid"
+rootProject.name = "Vienna-Server-Android"
 include(":app")
