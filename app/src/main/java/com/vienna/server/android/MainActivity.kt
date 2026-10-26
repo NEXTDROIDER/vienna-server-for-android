@@ -1,4 +1,3 @@
-
 package com.vienna.server.android
 
 import android.app.Activity
@@ -38,7 +37,10 @@ class MainActivity : Activity() {
         buildUi()
 
         appendLog("Vienna Server initialized")
-        appendLog("Android version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+        appendLog(
+            "Android version: ${Build.VERSION.RELEASE} " +
+                "(API ${Build.VERSION.SDK_INT})"
+        )
 
         if (!hasStorageAccess()) {
             appendLog("Storage access is required.")
@@ -71,7 +73,7 @@ class MainActivity : Activity() {
             hint = "Port"
             setText("8080")
             inputType = InputType.TYPE_CLASS_NUMBER
-            singleLine = true
+            setSingleLine(true)
         }
 
         val buttons = LinearLayout(this).apply {
@@ -81,45 +83,72 @@ class MainActivity : Activity() {
 
         startButton = Button(this).apply {
             text = "Start"
-            setOnClickListener { startServer() }
+            setOnClickListener {
+                startServer()
+            }
         }
 
         stopButton = Button(this).apply {
             text = "Stop"
             isEnabled = false
-            setOnClickListener { stopServer() }
+            setOnClickListener {
+                stopServer()
+            }
         }
 
         patcherButton = Button(this).apply {
             text = "Patcher"
+
             setOnClickListener {
                 if (!hasStorageAccess()) {
-                    appendLog("Grant storage access before opening Patcher.")
+                    appendLog(
+                        "Grant storage access before opening Patcher."
+                    )
                     requestStorageAccess()
                     return@setOnClickListener
                 }
 
-                val port = portInput.text.toString().toIntOrNull() ?: 8080
+                val port = portInput.text.toString()
+                    .toIntOrNull() ?: 8080
 
                 try {
                     startActivity(
-                        Intent(this@MainActivity, PatcherActivity::class.java)
-                            .putExtra(PatcherActivity.EXTRA_PORT, port)
+                        Intent(
+                            this@MainActivity,
+                            PatcherActivity::class.java
+                        ).putExtra(
+                            PatcherActivity.EXTRA_PORT,
+                            port
+                        )
                     )
                 } catch (error: Exception) {
-                    appendLog("Could not open Patcher: ${error.message}")
-                    ServerLogger.log("Patcher launch failed", error)
+                    appendLog(
+                        "Could not open Patcher: ${error.message}"
+                    )
+                    ServerLogger.log(
+                        "Patcher launch failed",
+                        error
+                    )
                 }
             }
         }
 
         buttons.addView(
             startButton,
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
         )
+
         buttons.addView(
             stopButton,
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
         )
 
         val logTitle = TextView(this).apply {
@@ -140,6 +169,7 @@ class MainActivity : Activity() {
 
         scroller = ScrollView(this).apply {
             isFillViewport = true
+
             addView(
                 logText,
                 ScrollView.LayoutParams(
@@ -175,7 +205,9 @@ class MainActivity : Activity() {
 
     private fun requestStorageAccess() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            appendLog("Check storage permissions in Android settings.")
+            appendLog(
+                "Check storage permissions in Android settings."
+            )
             return
         }
 
@@ -184,15 +216,25 @@ class MainActivity : Activity() {
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                 Uri.parse("package:$packageName")
             )
+
             startActivity(intent)
         } catch (error: Exception) {
             try {
                 startActivity(
-                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    Intent(
+                        Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                    )
                 )
             } catch (fallbackError: Exception) {
-                appendLog("Could not open storage settings: ${fallbackError.message}")
-                ServerLogger.log("Storage settings launch failed", fallbackError)
+                appendLog(
+                    "Could not open storage settings: " +
+                        "${fallbackError.message}"
+                )
+
+                ServerLogger.log(
+                    "Storage settings launch failed",
+                    fallbackError
+                )
             }
         }
     }
@@ -224,14 +266,26 @@ class MainActivity : Activity() {
             )
 
             if (!directory.exists() && !directory.mkdirs()) {
-                appendLog("Could not create log directory: ${directory.absolutePath}")
+                appendLog(
+                    "Could not create log directory: " +
+                        directory.absolutePath
+                )
                 return
             }
 
-            appendLog("Log file: ${File(directory, "server.log").absolutePath}")
+            appendLog(
+                "Log file: " +
+                    File(directory, "server.log").absolutePath
+            )
         } catch (error: Exception) {
-            appendLog("Log directory error: ${error.message}")
-            ServerLogger.log("Log directory initialization failed", error)
+            appendLog(
+                "Log directory error: ${error.message}"
+            )
+
+            ServerLogger.log(
+                "Log directory initialization failed",
+                error
+            )
         }
     }
 
@@ -242,7 +296,9 @@ class MainActivity : Activity() {
         }
 
         if (!hasStorageAccess()) {
-            appendLog("Cannot start: grant all-files access first.")
+            appendLog(
+                "Cannot start: grant all-files access first."
+            )
             requestStorageAccess()
             return
         }
@@ -250,7 +306,9 @@ class MainActivity : Activity() {
         val port = portInput.text.toString().toIntOrNull()
 
         if (port == null || port !in 1..65535) {
-            appendLog("Invalid port. Enter a number between 1 and 65535.")
+            appendLog(
+                "Invalid port. Enter a number between 1 and 65535."
+            )
             return
         }
 
@@ -270,24 +328,54 @@ class MainActivity : Activity() {
             statusText.text = "Running on port $port"
             stopButton.isEnabled = true
 
-            appendLog("Server started: http://0.0.0.0:$port")
-            appendLog("Root directory: ${instance.paths.rootDir.absolutePath}")
-            appendLog("Database: ${instance.paths.dbFile.absolutePath}")
-            appendLog("Static data: ${instance.paths.staticDataDir.absolutePath}")
-            appendLog("Mods: ${instance.paths.modsDir.absolutePath}")
-            appendLog("Buildplates: ${instance.paths.buildplatesDir.absolutePath}")
-            appendLog("Logs: ${instance.paths.logsDir.absolutePath}")
+            appendLog(
+                "Server started: http://0.0.0.0:$port"
+            )
+            appendLog(
+                "Root directory: " +
+                    instance.paths.rootDir.absolutePath
+            )
+            appendLog(
+                "Database: " +
+                    instance.paths.dbFile.absolutePath
+            )
+            appendLog(
+                "Static data: " +
+                    instance.paths.staticDataDir.absolutePath
+            )
+            appendLog(
+                "Mods: " +
+                    instance.paths.modsDir.absolutePath
+            )
+            appendLog(
+                "Buildplates: " +
+                    instance.paths.buildplatesDir.absolutePath
+            )
+            appendLog(
+                "Logs: " +
+                    instance.paths.logsDir.absolutePath
+            )
 
             ServerLogger.log("Server started on port $port")
         } catch (error: Exception) {
             statusText.text = "Start failed"
-            appendLog("Start failed: ${error.message}")
-            ServerLogger.log("Server startup failed", error)
+
+            appendLog(
+                "Start failed: ${error.message}"
+            )
+
+            ServerLogger.log(
+                "Server startup failed",
+                error
+            )
 
             try {
                 instance.stop()
             } catch (stopError: Exception) {
-                ServerLogger.log("Error stopping failed server", stopError)
+                ServerLogger.log(
+                    "Error stopping failed server",
+                    stopError
+                )
             }
 
             server = null
@@ -310,11 +398,18 @@ class MainActivity : Activity() {
 
         try {
             instance.stop()
+
             appendLog("Server stopped.")
             ServerLogger.log("Server stopped")
         } catch (error: Exception) {
-            appendLog("Stop failed: ${error.message}")
-            ServerLogger.log("Server stop failed", error)
+            appendLog(
+                "Stop failed: ${error.message}"
+            )
+
+            ServerLogger.log(
+                "Server stop failed",
+                error
+            )
         } finally {
             server = null
             statusText.text = "Stopped"
@@ -327,6 +422,27 @@ class MainActivity : Activity() {
         if (!::logText.isInitialized) return
 
         runOnUiThread {
+            val current = logText.text.toString()
+
+            logText.text = if (current.isBlank()) {
+                message
+            } else {
+                "$current\n$message"
+            }
+
+            scroller.post {
+                scroller.fullScroll(View.FOCUS_DOWN)
+            }
+        }
+
+        ServerLogger.log(message)
+    }
+
+    override fun onDestroy() {
+        stopServer()
+        super.onDestroy()
+    }
+}nUiThread {
             val current = logText.text.toString()
 
             logText.text = if (current.isBlank()) {
