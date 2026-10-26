@@ -4,7 +4,7 @@ Android Kotlin port of the Vienna Rust API server.
 
 The app starts an embedded HTTP server on the selected port and stores runtime data in:
 
-`/data/data/com.vienna.server.android/files/vienna`
+`/storage/emulated/0/.vienna`
 
 Main folders:
 
