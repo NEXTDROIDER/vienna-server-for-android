@@ -134,8 +134,16 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun appendLog(message: String) {
+
+private fun appendLog(message: String) {
+    ServerLogger.log(message)
+
+    runOnUiThread {
         val current = logText.text.toString()
-        logText.text = if (current.isBlank()) message else "$current\n$message"
+        logText.text = if (current.isBlank()) {
+            message
+        } else {
+            "$current\n$message"
+        }
     }
 }
