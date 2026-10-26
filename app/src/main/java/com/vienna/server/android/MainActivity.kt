@@ -15,7 +15,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import java.io.File
 
 class MainActivity : Activity() {
@@ -112,15 +111,15 @@ class MainActivity : Activity() {
                     .toIntOrNull() ?: 8080
 
                 try {
-                    startActivity(
-                        Intent(
-                            this@MainActivity,
-                            PatcherActivity::class.java
-                        ).putExtra(
-                            PatcherActivity.EXTRA_PORT,
-                            port
-                        )
+                    val intent = Intent(
+                        this@MainActivity,
+                        PatcherActivity::class.java
+                    ).putExtra(
+                        PatcherActivity.EXTRA_PORT,
+                        port
                     )
+
+                    startActivity(intent)
                 } catch (error: Exception) {
                     appendLog(
                         "Could not open Patcher: ${error.message}"
@@ -135,18 +134,18 @@ class MainActivity : Activity() {
 
         buttons.addView(
             startButton,
-            LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams(
                 0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f
             )
         )
 
         buttons.addView(
             stopButton,
-            LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams(
                 0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f
             )
         )
@@ -172,9 +171,9 @@ class MainActivity : Activity() {
 
             addView(
                 logText,
-                ScrollView.LayoutParams(
-                    ScrollView.LayoutParams.MATCH_PARENT,
-                    ScrollView.LayoutParams.WRAP_CONTENT
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
                 )
             )
         }
@@ -188,8 +187,8 @@ class MainActivity : Activity() {
 
         root.addView(
             scroller,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
             )
@@ -216,7 +215,6 @@ class MainActivity : Activity() {
                 Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
                 Uri.parse("package:$packageName")
             )
-
             startActivity(intent)
         } catch (error: Exception) {
             try {
@@ -328,9 +326,7 @@ class MainActivity : Activity() {
             statusText.text = "Running on port $port"
             stopButton.isEnabled = true
 
-            appendLog(
-                "Server started: http://0.0.0.0:$port"
-            )
+            appendLog("Server started: http://0.0.0.0:$port")
             appendLog(
                 "Root directory: " +
                     instance.paths.rootDir.absolutePath
@@ -358,6 +354,90 @@ class MainActivity : Activity() {
 
             ServerLogger.log("Server started on port $port")
         } catch (error: Exception) {
+            statusText.text = "Start failed"
+
+            appendLog(
+                "Start failed: ${error.message}"
+            )
+
+            ServerLogger.log(
+                "Server startup failed",
+                error
+            )
+
+            try {
+                instance.stop()
+            } catch (stopError: Exception) {
+                ServerLogger.log(
+                    "Error stopping failed server",
+                    stopError
+                )
+            }
+
+            server = null
+            stopButton.isEnabled = false
+        } finally {
+            startButton.isEnabled = true
+        }
+    }
+
+    private fun stopServer() {
+        val instance = server
+
+        if (instance == null) {
+            statusText.text = "Stopped"
+            stopButton.isEnabled = false
+            return
+        }
+
+        appendLog("Stopping Vienna Server...")
+
+        try {
+            instance.stop()
+            appendLog("Server stopped.")
+            ServerLogger.log("Server stopped")
+        } catch (error: Exception) {
+            appendLog(
+                "Stop failed: ${error.message}"
+            )
+
+            ServerLogger.log(
+                "Server stop failed",
+                error
+            )
+        } finally {
+            server = null
+            statusText.text = "Stopped"
+            stopButton.isEnabled = false
+            startButton.isEnabled = true
+        }
+    }
+
+    private fun appendLog(message: String) {
+        if (!::logText.isInitialized) return
+
+        runOnUiThread {
+            val current = logText.text.toString()
+
+            logText.text = if (current.isBlank()) {
+                message
+            } else {
+                "$current\n$message"
+            }
+
+            scroller.post {
+                scroller.fullScroll(View.FOCUS_DOWN)
+            }
+        }
+
+        ServerLogger.log(message)
+    }
+
+    override fun onDestroy() {
+        stopServer()
+        super.onDestroy()
+    }
+}xception) {
             statusText.text = "Start failed"
 
             appendLog(
