@@ -32,7 +32,6 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         buildUi()
 
         appendLog("Vienna Server initialized")
@@ -82,22 +81,17 @@ class MainActivity : Activity() {
 
         startButton = Button(this).apply {
             text = "Start"
-            setOnClickListener {
-                startServer()
-            }
+            setOnClickListener { startServer() }
         }
 
         stopButton = Button(this).apply {
             text = "Stop"
             isEnabled = false
-            setOnClickListener {
-                stopServer()
-            }
+            setOnClickListener { stopServer() }
         }
 
         patcherButton = Button(this).apply {
             text = "Patcher"
-
             setOnClickListener {
                 if (!hasStorageAccess()) {
                     appendLog(
@@ -114,38 +108,32 @@ class MainActivity : Activity() {
                     val intent = Intent(
                         this@MainActivity,
                         PatcherActivity::class.java
-                    ).putExtra(
-                        PatcherActivity.EXTRA_PORT,
-                        port
-                    )
+                    ).putExtra(PatcherActivity.EXTRA_PORT, port)
 
                     startActivity(intent)
                 } catch (error: Exception) {
                     appendLog(
                         "Could not open Patcher: ${error.message}"
                     )
-                    ServerLogger.log(
-                        "Patcher launch failed",
-                        error
-                    )
+                    ServerLogger.log("Patcher launch failed", error)
                 }
             }
         }
 
         buttons.addView(
             startButton,
-            android.widget.LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams(
                 0,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f
             )
         )
 
         buttons.addView(
             stopButton,
-            android.widget.LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams(
                 0,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f
             )
         )
@@ -168,7 +156,6 @@ class MainActivity : Activity() {
 
         scroller = ScrollView(this).apply {
             isFillViewport = true
-
             addView(
                 logText,
                 android.widget.FrameLayout.LayoutParams(
@@ -187,8 +174,8 @@ class MainActivity : Activity() {
 
         root.addView(
             scroller,
-            android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1f
             )
@@ -204,31 +191,27 @@ class MainActivity : Activity() {
 
     private fun requestStorageAccess() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            appendLog(
-                "Check storage permissions in Android settings."
-            )
+            appendLog("Check storage permissions in Android settings.")
             return
         }
 
         try {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:$packageName")
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
             )
-            startActivity(intent)
         } catch (error: Exception) {
             try {
                 startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                    )
+                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
                 )
             } catch (fallbackError: Exception) {
                 appendLog(
                     "Could not open storage settings: " +
                         "${fallbackError.message}"
                 )
-
                 ServerLogger.log(
                     "Storage settings launch failed",
                     fallbackError
@@ -239,7 +222,6 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-
         if (!::statusText.isInitialized) return
 
         if (hasStorageAccess()) {
@@ -248,7 +230,6 @@ class MainActivity : Activity() {
             } else {
                 "Stopped"
             }
-
             appendLog("Storage access: granted")
             ensureLogDirectory()
         } else {
@@ -276,10 +257,7 @@ class MainActivity : Activity() {
                     File(directory, "server.log").absolutePath
             )
         } catch (error: Exception) {
-            appendLog(
-                "Log directory error: ${error.message}"
-            )
-
+            appendLog("Log directory error: ${error.message}")
             ServerLogger.log(
                 "Log directory initialization failed",
                 error
@@ -294,15 +272,12 @@ class MainActivity : Activity() {
         }
 
         if (!hasStorageAccess()) {
-            appendLog(
-                "Cannot start: grant all-files access first."
-            )
+            appendLog("Cannot start: grant all-files access first.")
             requestStorageAccess()
             return
         }
 
         val port = portInput.text.toString().toIntOrNull()
-
         if (port == null || port !in 1..65535) {
             appendLog(
                 "Invalid port. Enter a number between 1 and 65535."
@@ -314,56 +289,35 @@ class MainActivity : Activity() {
         appendLog("Starting Vienna Server on port $port...")
 
         val instance = ViennaHttpServer(this, port) { message ->
-            runOnUiThread {
-                appendLog(message)
-            }
+            runOnUiThread { appendLog(message) }
         }
 
         try {
             instance.start()
             server = instance
-
             statusText.text = "Running on port $port"
             stopButton.isEnabled = true
 
             appendLog("Server started: http://0.0.0.0:$port")
             appendLog(
-                "Root directory: " +
-                    instance.paths.rootDir.absolutePath
+                "Root directory: ${instance.paths.rootDir.absolutePath}"
             )
             appendLog(
-                "Database: " +
-                    instance.paths.dbFile.absolutePath
+                "Database: ${instance.paths.dbFile.absolutePath}"
             )
             appendLog(
-                "Static data: " +
-                    instance.paths.staticDataDir.absolutePath
+                "Static data: ${instance.paths.staticDataDir.absolutePath}"
             )
+            appendLog("Mods: ${instance.paths.modsDir.absolutePath}")
             appendLog(
-                "Mods: " +
-                    instance.paths.modsDir.absolutePath
+                "Buildplates: ${instance.paths.buildplatesDir.absolutePath}"
             )
-            appendLog(
-                "Buildplates: " +
-                    instance.paths.buildplatesDir.absolutePath
-            )
-            appendLog(
-                "Logs: " +
-                    instance.paths.logsDir.absolutePath
-            )
-
+            appendLog("Logs: ${instance.paths.logsDir.absolutePath}")
             ServerLogger.log("Server started on port $port")
         } catch (error: Exception) {
             statusText.text = "Start failed"
-
-            appendLog(
-                "Start failed: ${error.message}"
-            )
-
-            ServerLogger.log(
-                "Server startup failed",
-                error
-            )
+            appendLog("Start failed: ${error.message}")
+            ServerLogger.log("Server startup failed", error)
 
             try {
                 instance.stop()
@@ -383,10 +337,9 @@ class MainActivity : Activity() {
 
     private fun stopServer() {
         val instance = server
-
         if (instance == null) {
-            statusText.text = "Stopped"
-            stopButton.isEnabled = false
+            if (::statusText.isInitialized) statusText.text = "Stopped"
+            if (::stopButton.isInitialized) stopButton.isEnabled = false
             return
         }
 
@@ -397,14 +350,8 @@ class MainActivity : Activity() {
             appendLog("Server stopped.")
             ServerLogger.log("Server stopped")
         } catch (error: Exception) {
-            appendLog(
-                "Stop failed: ${error.message}"
-            )
-
-            ServerLogger.log(
-                "Server stop failed",
-                error
-            )
+            appendLog("Stop failed: ${error.message}")
+            ServerLogger.log("Server stop failed", error)
         } finally {
             server = null
             statusText.text = "Stopped"
@@ -418,7 +365,6 @@ class MainActivity : Activity() {
 
         runOnUiThread {
             val current = logText.text.toString()
-
             logText.text = if (current.isBlank()) {
                 message
             } else {
@@ -430,114 +376,6 @@ class MainActivity : Activity() {
             }
         }
 
-        ServerLogger.log(message)
-    }
-
-    override fun onDestroy() {
-        stopServer()
-        super.onDestroy()
-    }
-}xception) {
-            statusText.text = "Start failed"
-
-            appendLog(
-                "Start failed: ${error.message}"
-            )
-
-            ServerLogger.log(
-                "Server startup failed",
-                error
-            )
-
-            try {
-                instance.stop()
-            } catch (stopError: Exception) {
-                ServerLogger.log(
-                    "Error stopping failed server",
-                    stopError
-                )
-            }
-
-            server = null
-            stopButton.isEnabled = false
-        } finally {
-            startButton.isEnabled = true
-        }
-    }
-
-    private fun stopServer() {
-        val instance = server
-
-        if (instance == null) {
-            statusText.text = "Stopped"
-            stopButton.isEnabled = false
-            return
-        }
-
-        appendLog("Stopping Vienna Server...")
-
-        try {
-            instance.stop()
-
-            appendLog("Server stopped.")
-            ServerLogger.log("Server stopped")
-        } catch (error: Exception) {
-            appendLog(
-                "Stop failed: ${error.message}"
-            )
-
-            ServerLogger.log(
-                "Server stop failed",
-                error
-            )
-        } finally {
-            server = null
-            statusText.text = "Stopped"
-            stopButton.isEnabled = false
-            startButton.isEnabled = true
-        }
-    }
-
-    private fun appendLog(message: String) {
-        if (!::logText.isInitialized) return
-
-        runOnUiThread {
-            val current = logText.text.toString()
-
-            logText.text = if (current.isBlank()) {
-                message
-            } else {
-                "$current\n$message"
-            }
-
-            scroller.post {
-                scroller.fullScroll(View.FOCUS_DOWN)
-            }
-        }
-
-        ServerLogger.log(message)
-    }
-
-    override fun onDestroy() {
-        stopServer()
-        super.onDestroy()
-    }
-}nUiThread {
-            val current = logText.text.toString()
-
-            logText.text = if (current.isBlank()) {
-                message
-            } else {
-                "$current\n$message"
-            }
-
-            scroller.post {
-                scroller.fullScroll(View.FOCUS_DOWN)
-            }
-        }
-
-        // Write to the persistent log file.
-        // ServerLogger handles file-write failures internally.
         ServerLogger.log(message)
     }
 
