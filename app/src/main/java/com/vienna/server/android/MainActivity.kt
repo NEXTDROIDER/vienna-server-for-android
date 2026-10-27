@@ -89,6 +89,7 @@ class MainActivity : Activity() {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
             setText("8080")
         }
+
         root.addView(
             portInput,
             LinearLayout.LayoutParams(
@@ -157,9 +158,10 @@ class MainActivity : Activity() {
             setTextIsSelectable(true)
         }
 
+        // Исправлено: LayoutParams берём из ViewGroup.
         scrollView.addView(
             logView,
-            ScrollView.LayoutParams(
+            ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
@@ -272,27 +274,29 @@ class MainActivity : Activity() {
                 appendLog(message)
             },
             onComplete = { result ->
-                resourcesButton.isEnabled = true
+                runOnUiThread {
+                    resourcesButton.isEnabled = true
 
-                result.onSuccess {
-                    appendLog("Установка ресурсов завершена.")
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Ресурсы установлены",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+                    result.onSuccess {
+                        appendLog("Установка ресурсов завершена.")
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Ресурсы установлены",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
 
-                result.onFailure { error ->
-                    appendLog(
-                        "Ошибка установки ресурсов: " +
-                            (error.message ?: error.javaClass.simpleName)
-                    )
-                    Toast.makeText(
-                        this@MainActivity,
-                        "Не удалось установить ресурсы. Проверь журнал.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    result.onFailure { error ->
+                        appendLog(
+                            "Ошибка установки ресурсов: " +
+                                (error.message ?: error.javaClass.simpleName)
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Не удалось установить ресурсы. Проверь журнал.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         )
@@ -315,7 +319,6 @@ class MainActivity : Activity() {
             return
         }
 
-        // isRunning здесь является свойством Boolean, а не функцией.
         if (server?.isRunning == true) {
             appendLog("Сервер уже запущен.")
             return
@@ -364,7 +367,6 @@ class MainActivity : Activity() {
         ).format(Date())
 
         val line = "[$timestamp] $message\n"
-
         logView.append(line)
 
         if (::scrollView.isInitialized) {
@@ -375,6 +377,7 @@ class MainActivity : Activity() {
 
         try {
             val logDirectory = File(viennaDirectory, "logs")
+
             if (!logDirectory.exists()) {
                 logDirectory.mkdirs()
             }
