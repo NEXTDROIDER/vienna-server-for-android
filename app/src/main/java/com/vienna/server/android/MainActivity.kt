@@ -1,181 +1,164 @@
+
 package com.vienna.server.android
 
+import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.text.InputType
 import android.view.Gravity
-import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import java.io.File
 
 class MainActivity : Activity() {
 
-    private var server: ViennaHttpServer? = null
-
-    private lateinit var statusText: TextView
-    private lateinit var logText: TextView
     private lateinit var portInput: EditText
-    private lateinit var scroller: ScrollView
-
+    private lateinit var logView: TextView
+    private lateinit var scrollView: ScrollView
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
-    private lateinit var patcherButton: Button
+    private lateinit var resourcesButton: Button
+
+    private var server: ViennaHttpServer? = null
+    private var permissionDialogShown = false
+    private var autoInstallChecked = false
+
+    private val viennaDirectory = File("/sdcard/.vienna")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        buildUi()
+        createUi()
+        appendLog("Vienna Server for Android запущен.")
+        appendLog("Папка ресурсов: ${viennaDirectory.absolutePath}")
+    }
 
-        appendLog("Vienna Server initialized")
-        appendLog(
-            "Android version: ${Build.VERSION.RELEASE} " +
-                "(API ${Build.VERSION.SDK_INT})"
-        )
+    override fun onResume() {
+        super.onResume()
 
-        if (!hasStorageAccess()) {
-            appendLog("Storage access is required.")
+        if (hasStorageAccess()) {
+            if (!autoInstallChecked) {
+                autoInstallChecked = true
+                ensureResources()
+            }
+        } else if (!permissionDialogShown) {
+            permissionDialogShown = true
             requestStorageAccess()
-        } else {
-            appendLog("Storage access granted.")
-            ensureLogDirectory()
         }
     }
 
-    private fun buildUi() {
+    private fun createUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(32, 32, 32, 16)
+            setPadding(20, 20, 20, 20)
         }
 
         val title = TextView(this).apply {
-            text = "Vienna Server"
-            textSize = 26f
-            setTextColor(0xff101418.toInt())
+            text = "Vienna Server for Android"
+            textSize = 22f
+            gravity = Gravity.CENTER
         }
-
-        statusText = TextView(this).apply {
-            text = "Stopped"
-            textSize = 16f
-            setPadding(0, 16, 0, 12)
-        }
+        root.addView(
+            title,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         portInput = EditText(this).apply {
-            hint = "Port"
-            setText("8080")
-            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "Порт сервера"
             setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setText("8080")
         }
-
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        root.addView(
+            portInput,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         startButton = Button(this).apply {
-            text = "Start"
+            text = "Запустить сервер"
             setOnClickListener { startServer() }
         }
+        root.addView(startButton)
 
         stopButton = Button(this).apply {
-            text = "Stop"
-            isEnabled = false
+            text = "Остановить сервер"
             setOnClickListener { stopServer() }
+            isEnabled = false
         }
+        root.addView(stopButton)
 
-        patcherButton = Button(this).apply {
-            text = "Patcher"
+        resourcesButton = Button(this).apply {
+            text = "Скачать и распаковать ресурсы"
             setOnClickListener {
-                if (!hasStorageAccess()) {
-                    appendLog(
-                        "Grant storage access before opening Patcher."
-                    )
+                if (hasStorageAccess()) {
+                    downloadResources(force = true)
+                } else {
                     requestStorageAccess()
-                    return@setOnClickListener
-                }
-
-                val port = portInput.text.toString()
-                    .toIntOrNull() ?: 8080
-
-                try {
-                    val intent = Intent(
-                        this@MainActivity,
-                        PatcherActivity::class.java
-                    ).putExtra(PatcherActivity.EXTRA_PORT, port)
-
-                    startActivity(intent)
-                } catch (error: Exception) {
-                    appendLog(
-                        "Could not open Patcher: ${error.message}"
-                    )
-                    ServerLogger.log("Patcher launch failed", error)
                 }
             }
         }
+        root.addView(resourcesButton)
 
-        buttons.addView(
-            startButton,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        buttons.addView(
-            stopButton,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
+        val patcherButton = Button(this).apply {
+            text = "Patcher"
+            setOnClickListener {
+                try {
+                    startActivity(
+                        Intent(
+                            this@MainActivity,
+                            PatcherActivity::class.java
+                        )
+                    )
+                } catch (e: Exception) {
+                    appendLog("Не удалось открыть Patcher: ${e.message}")
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Не удалось открыть Patcher",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+        root.addView(patcherButton)
 
         val logTitle = TextView(this).apply {
-            text = "Server logs"
+            text = "Журнал"
             textSize = 18f
-            setPadding(0, 20, 0, 8)
         }
-
-        logText = TextView(this).apply {
-            textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextColor(0xff263238.toInt())
-            setTextIsSelectable(true)
-            setPadding(12, 12, 12, 12)
-            setBackgroundColor(0xfff1f3f4.toInt())
-            text = ""
-        }
-
-        scroller = ScrollView(this).apply {
-            isFillViewport = true
-            addView(
-                logText,
-                android.widget.FrameLayout.LayoutParams(
-                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
-        }
-
-        root.addView(title)
-        root.addView(statusText)
-        root.addView(portInput)
-        root.addView(buttons)
-        root.addView(patcherButton)
         root.addView(logTitle)
 
+        scrollView = ScrollView(this)
+        logView = TextView(this).apply {
+            textSize = 13f
+            setTextIsSelectable(true)
+        }
+        scrollView.addView(
+            logView,
+            ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+
         root.addView(
-            scroller,
+            scrollView,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
                 1f
             )
@@ -185,202 +168,218 @@ class MainActivity : Activity() {
     }
 
     private fun hasStorageAccess(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
+        } else {
+            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
     }
 
     private fun requestStorageAccess() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            appendLog("Check storage permissions in Android settings.")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            AlertDialog.Builder(this)
+                .setTitle("Доступ к файлам")
+                .setMessage(
+                    "Для загрузки ресурсов в /sdcard/.vienna/ " +
+                        "приложению нужен доступ к файлам."
+                )
+                .setNegativeButton("Позже", null)
+                .setPositiveButton("Настройки") { _, _ ->
+                    try {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                        startActivity(intent)
+                    } catch (_: Exception) {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                            )
+                        )
+                    }
+                }
+                .show()
+        } else {
+            requestPermissions(
+                arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                STORAGE_PERMISSION_REQUEST
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (requestCode == STORAGE_PERMISSION_REQUEST &&
+            hasStorageAccess()
+        ) {
+            ensureResources()
+        } else if (requestCode == STORAGE_PERMISSION_REQUEST) {
+            appendLog("Доступ к хранилищу не предоставлен.")
+        }
+    }
+
+    private fun ensureResources() {
+        if (ViennaResourceInstaller.isInstalling()) return
+
+        if (ViennaResourceInstaller.isInstalled(viennaDirectory)) {
+            appendLog("Ресурсы уже установлены.")
             return
         }
 
-        try {
-            startActivity(
-                Intent(
-                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    Uri.parse("package:$packageName")
-                )
-            )
-        } catch (error: Exception) {
-            try {
-                startActivity(
-                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                )
-            } catch (fallbackError: Exception) {
-                appendLog(
-                    "Could not open storage settings: " +
-                        "${fallbackError.message}"
-                )
-                ServerLogger.log(
-                    "Storage settings launch failed",
-                    fallbackError
-                )
-            }
-        }
+        downloadResources(force = false)
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (!::statusText.isInitialized) return
-
-        if (hasStorageAccess()) {
-            statusText.text = if (server?.isRunning == true) {
-                "Running on port ${portInput.text}"
-            } else {
-                "Stopped"
-            }
-            appendLog("Storage access: granted")
-            ensureLogDirectory()
-        } else {
-            statusText.text = "Storage permission required"
+    private fun downloadResources(force: Boolean) {
+        if (!hasStorageAccess()) {
+            requestStorageAccess()
+            return
         }
-    }
 
-    private fun ensureLogDirectory() {
-        try {
-            val directory = File(
-                Environment.getExternalStorageDirectory(),
-                ".vienna/logs"
-            )
-
-            if (!directory.exists() && !directory.mkdirs()) {
-                appendLog(
-                    "Could not create log directory: " +
-                        directory.absolutePath
-                )
-                return
-            }
-
-            appendLog(
-                "Log file: " +
-                    File(directory, "server.log").absolutePath
-            )
-        } catch (error: Exception) {
-            appendLog("Log directory error: ${error.message}")
-            ServerLogger.log(
-                "Log directory initialization failed",
-                error
-            )
+        if (ViennaResourceInstaller.isInstalling()) {
+            appendLog("Загрузка ресурсов уже выполняется.")
+            return
         }
+
+        resourcesButton.isEnabled = false
+        appendLog("Подготовка загрузки ресурсов...")
+
+        ViennaResourceInstaller.install(
+            destination = viennaDirectory,
+            force = force,
+            onProgress = { message ->
+                appendLog(message)
+            },
+            onComplete = { result ->
+                resourcesButton.isEnabled = true
+
+                result.onSuccess {
+                    appendLog("Установка ресурсов завершена.")
+                    Toast.makeText(
+                        this,
+                        "Ресурсы установлены",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }.onFailure { error ->
+                    appendLog(
+                        "Ошибка ресурсов: " +
+                            (error.message ?: error.javaClass.simpleName)
+                    )
+                    Toast.makeText(
+                        this,
+                        "Не удалось установить ресурсы",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        )
     }
 
     private fun startServer() {
-        if (server?.isRunning == true) {
-            appendLog("Server is already running.")
-            return
-        }
-
         if (!hasStorageAccess()) {
-            appendLog("Cannot start: grant all-files access first.")
             requestStorageAccess()
             return
         }
 
         val port = portInput.text.toString().toIntOrNull()
+
         if (port == null || port !in 1..65535) {
-            appendLog(
-                "Invalid port. Enter a number between 1 and 65535."
-            )
+            Toast.makeText(
+                this,
+                "Укажи корректный порт от 1 до 65535",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
 
-        startButton.isEnabled = false
-        appendLog("Starting Vienna Server on port $port...")
-
-        val instance = ViennaHttpServer(this, port) { message ->
-            runOnUiThread { appendLog(message) }
+        if (server?.isRunning() == true) {
+            appendLog("Сервер уже запущен.")
+            return
         }
 
         try {
-            instance.start()
-            server = instance
-            statusText.text = "Running on port $port"
-            stopButton.isEnabled = true
-
-            appendLog("Server started: http://0.0.0.0:$port")
-            appendLog(
-                "Root directory: ${instance.paths.rootDir.absolutePath}"
-            )
-            appendLog(
-                "Database: ${instance.paths.dbFile.absolutePath}"
-            )
-            appendLog(
-                "Static data: ${instance.paths.staticDataDir.absolutePath}"
-            )
-            appendLog("Mods: ${instance.paths.modsDir.absolutePath}")
-            appendLog(
-                "Buildplates: ${instance.paths.buildplatesDir.absolutePath}"
-            )
-            appendLog("Logs: ${instance.paths.logsDir.absolutePath}")
-            ServerLogger.log("Server started on port $port")
-        } catch (error: Exception) {
-            statusText.text = "Start failed"
-            appendLog("Start failed: ${error.message}")
-            ServerLogger.log("Server startup failed", error)
-
-            try {
-                instance.stop()
-            } catch (stopError: Exception) {
-                ServerLogger.log(
-                    "Error stopping failed server",
-                    stopError
-                )
+            server = ViennaHttpServer(this, port) { message ->
+                runOnUiThread {
+                    appendLog(message)
+                }
             }
 
+            server?.start()
+
+            startButton.isEnabled = false
+            stopButton.isEnabled = true
+            portInput.isEnabled = false
+
+            appendLog("Сервер запущен на порту $port.")
+        } catch (e: Exception) {
             server = null
-            stopButton.isEnabled = false
-        } finally {
-            startButton.isEnabled = true
+            appendLog("Ошибка запуска сервера: ${e.message}")
         }
     }
 
     private fun stopServer() {
-        val instance = server
-        if (instance == null) {
-            if (::statusText.isInitialized) statusText.text = "Stopped"
-            if (::stopButton.isInitialized) stopButton.isEnabled = false
-            return
-        }
-
-        appendLog("Stopping Vienna Server...")
-
         try {
-            instance.stop()
-            appendLog("Server stopped.")
-            ServerLogger.log("Server stopped")
-        } catch (error: Exception) {
-            appendLog("Stop failed: ${error.message}")
-            ServerLogger.log("Server stop failed", error)
+            server?.stop()
+            appendLog("Сервер остановлен.")
+        } catch (e: Exception) {
+            appendLog("Ошибка остановки сервера: ${e.message}")
         } finally {
             server = null
-            statusText.text = "Stopped"
-            stopButton.isEnabled = false
             startButton.isEnabled = true
+            stopButton.isEnabled = false
+            portInput.isEnabled = true
         }
     }
 
     private fun appendLog(message: String) {
-        if (!::logText.isInitialized) return
+        if (!::logView.isInitialized) return
 
-        runOnUiThread {
-            val current = logText.text.toString()
-            logText.text = if (current.isBlank()) {
-                message
-            } else {
-                "$current\n$message"
-            }
+        val line = "[${java.text.SimpleDateFormat(
+            "HH:mm:ss",
+            java.util.Locale.getDefault()
+        ).format(java.util.Date())}] $message\n"
 
-            scroller.post {
-                scroller.fullScroll(View.FOCUS_DOWN)
+        logView.append(line)
+
+        if (::scrollView.isInitialized) {
+            scrollView.post {
+                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
             }
         }
 
-        ServerLogger.log(message)
+        try {
+            val logDirectory = File(viennaDirectory, "logs")
+            if (!logDirectory.exists()) {
+                logDirectory.mkdirs()
+            }
+
+            File(logDirectory, "server.log").appendText(line)
+        } catch (_: Exception) {
+            // Ошибка записи лога не должна останавливать сервер.
+        }
     }
 
     override fun onDestroy() {
-        stopServer()
+        try {
+            server?.stop()
+        } catch (_: Exception) {
+        }
+
+        server = null
         super.onDestroy()
+    }
+
+    companion object {
+        private const val STORAGE_PERMISSION_REQUEST = 701
     }
 }
