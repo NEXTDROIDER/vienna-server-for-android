@@ -5,6 +5,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,9 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : Activity() {
 
@@ -30,22 +34,25 @@ class MainActivity : Activity() {
     private lateinit var resourcesButton: Button
 
     private var server: ViennaHttpServer? = null
-    private var permissionDialogShown = false
     private var autoInstallChecked = false
+    private var permissionDialogShown = false
 
     private val viennaDirectory = File("/sdcard/.vienna")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createUi()
+
         appendLog("Vienna Server for Android запущен.")
-        appendLog("Папка ресурсов: ${viennaDirectory.absolutePath}")
+        appendLog("Каталог ресурсов: ${viennaDirectory.absolutePath}")
     }
 
     override fun onResume() {
         super.onResume()
 
         if (hasStorageAccess()) {
+            permissionDialogShown = false
+
             if (!autoInstallChecked) {
                 autoInstallChecked = true
                 ensureResources()
@@ -67,6 +74,7 @@ class MainActivity : Activity() {
             textSize = 22f
             gravity = Gravity.CENTER
         }
+
         root.addView(
             title,
             LinearLayout.LayoutParams(
@@ -97,8 +105,8 @@ class MainActivity : Activity() {
 
         stopButton = Button(this).apply {
             text = "Остановить сервер"
-            setOnClickListener { stopServer() }
             isEnabled = false
+            setOnClickListener { stopServer() }
         }
         root.addView(stopButton)
 
@@ -125,7 +133,7 @@ class MainActivity : Activity() {
                         )
                     )
                 } catch (e: Exception) {
-                    appendLog("Не удалось открыть Patcher: ${e.message}")
+                    appendLog("Ошибка открытия Patcher: ${e.message}")
                     Toast.makeText(
                         this@MainActivity,
                         "Не удалось открыть Patcher",
@@ -143,10 +151,12 @@ class MainActivity : Activity() {
         root.addView(logTitle)
 
         scrollView = ScrollView(this)
+
         logView = TextView(this).apply {
             textSize = 13f
             setTextIsSelectable(true)
         }
+
         scrollView.addView(
             logView,
             ScrollView.LayoutParams(
@@ -172,7 +182,7 @@ class MainActivity : Activity() {
             Environment.isExternalStorageManager()
         } else {
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
-                android.content.pm.PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED
         }
     }
 
@@ -181,8 +191,8 @@ class MainActivity : Activity() {
             AlertDialog.Builder(this)
                 .setTitle("Доступ к файлам")
                 .setMessage(
-                    "Для загрузки ресурсов в /sdcard/.vienna/ " +
-                        "приложению нужен доступ к файлам."
+                    "Разреши доступ к файлам, чтобы скачивать и распаковывать " +
+                        "ресурсы в /sdcard/.vienna/."
                 )
                 .setNegativeButton("Позже", null)
                 .setPositiveButton("Настройки") { _, _ ->
@@ -220,12 +230,13 @@ class MainActivity : Activity() {
             grantResults
         )
 
-        if (requestCode == STORAGE_PERMISSION_REQUEST &&
-            hasStorageAccess()
-        ) {
-            ensureResources()
-        } else if (requestCode == STORAGE_PERMISSION_REQUEST) {
-            appendLog("Доступ к хранилищу не предоставлен.")
+        if (requestCode == STORAGE_PERMISSION_REQUEST) {
+            if (hasStorageAccess()) {
+                autoInstallChecked = true
+                ensureResources()
+            } else {
+                appendLog("Доступ к хранилищу не предоставлен.")
+            }
         }
     }
 
@@ -252,7 +263,7 @@ class MainActivity : Activity() {
         }
 
         resourcesButton.isEnabled = false
-        appendLog("Подготовка загрузки ресурсов...")
+        appendLog("Начинается установка ресурсов...")
 
         ViennaResourceInstaller.install(
             destination = viennaDirectory,
@@ -266,18 +277,20 @@ class MainActivity : Activity() {
                 result.onSuccess {
                     appendLog("Установка ресурсов завершена.")
                     Toast.makeText(
-                        this,
+                        this@MainActivity,
                         "Ресурсы установлены",
                         Toast.LENGTH_SHORT
                     ).show()
-                }.onFailure { error ->
+                }
+
+                result.onFailure { error ->
                     appendLog(
-                        "Ошибка ресурсов: " +
+                        "Ошибка установки ресурсов: " +
                             (error.message ?: error.javaClass.simpleName)
                     )
                     Toast.makeText(
-                        this,
-                        "Не удалось установить ресурсы",
+                        this@MainActivity,
+                        "Не удалось установить ресурсы. Проверь журнал.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -296,13 +309,14 @@ class MainActivity : Activity() {
         if (port == null || port !in 1..65535) {
             Toast.makeText(
                 this,
-                "Укажи корректный порт от 1 до 65535",
+                "Укажи порт от 1 до 65535",
                 Toast.LENGTH_SHORT
             ).show()
             return
         }
 
-        if (server?.isRunning() == true) {
+        // isRunning здесь является свойством Boolean, а не функцией.
+        if (server?.isRunning == true) {
             appendLog("Сервер уже запущен.")
             return
         }
@@ -344,10 +358,12 @@ class MainActivity : Activity() {
     private fun appendLog(message: String) {
         if (!::logView.isInitialized) return
 
-        val line = "[${java.text.SimpleDateFormat(
+        val timestamp = SimpleDateFormat(
             "HH:mm:ss",
-            java.util.Locale.getDefault()
-        ).format(java.util.Date())}] $message\n"
+            Locale.getDefault()
+        ).format(Date())
+
+        val line = "[$timestamp] $message\n"
 
         logView.append(line)
 
@@ -365,7 +381,7 @@ class MainActivity : Activity() {
 
             File(logDirectory, "server.log").appendText(line)
         } catch (_: Exception) {
-            // Ошибка записи лога не должна останавливать сервер.
+            // Сбой записи журнала не должен останавливать приложение.
         }
     }
 
